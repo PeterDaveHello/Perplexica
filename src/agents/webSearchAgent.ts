@@ -61,6 +61,7 @@ const basicWebSearchResponsePrompt = `
 
     If you think there's nothing relevant in the search results, you can say that 'Hmm, sorry I could not find any relevant information on this topic. Would you like me to search again or ask something else?'.
     Anything between the \`context\` is retrieved from a search engine and is not a part of the conversation with the user. Today's date is ${new Date().toISOString()}
+    Please answer in {responseLanguage}.
 `;
 
 const strParser = new StringOutputParser();
@@ -100,6 +101,8 @@ const handleStream = async (
 type BasicChainInput = {
   chat_history: BaseMessage[];
   query: string;
+  searchLanguage: string;
+  responseLanguage: string;
 };
 
 const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
@@ -107,13 +110,13 @@ const createBasicWebSearchRetrieverChain = (llm: BaseChatModel) => {
     PromptTemplate.fromTemplate(basicSearchRetrieverPrompt),
     llm,
     strParser,
-    RunnableLambda.from(async (input: string) => {
+    RunnableLambda.from(async (input: string, { searchLanguage }) => {
       if (input === 'not_needed') {
         return { query: '', docs: [] };
       }
 
       const res = await searchSearxng(input, {
-        language: 'en',
+        language: searchLanguage,
       });
 
       const documents = res.results.map(
@@ -187,10 +190,13 @@ const createBasicWebSearchAnsweringChain = (
     RunnableMap.from({
       query: (input: BasicChainInput) => input.query,
       chat_history: (input: BasicChainInput) => input.chat_history,
+      searchLanguage: (input: BasicChainInput) => input.searchLanguage,
+      responseLanguage: (input: BasicChainInput) => input.responseLanguage,
       context: RunnableSequence.from([
         (input) => ({
           query: input.query,
           chat_history: formatChatHistoryAsString(input.chat_history),
+          searchLanguage: input.searchLanguage,
         }),
         basicWebSearchRetrieverChain
           .pipe(rerankDocs)
@@ -217,6 +223,8 @@ const basicWebSearch = (
   history: BaseMessage[],
   llm: BaseChatModel,
   embeddings: Embeddings,
+  searchLanguage: string,
+  responseLanguage: string,
 ) => {
   const emitter = new eventEmitter();
 
@@ -230,6 +238,8 @@ const basicWebSearch = (
       {
         chat_history: history,
         query: query,
+        searchLanguage: searchLanguage,
+        responseLanguage: responseLanguage,
       },
       {
         version: 'v1',
@@ -253,8 +263,17 @@ const handleWebSearch = (
   history: BaseMessage[],
   llm: BaseChatModel,
   embeddings: Embeddings,
+  searchLanguage: string,
+  responseLanguage: string,
 ) => {
-  const emitter = basicWebSearch(message, history, llm, embeddings);
+  const emitter = basicWebSearch(
+    message,
+    history,
+    llm,
+    embeddings,
+    searchLanguage,
+    responseLanguage,
+  );
   return emitter;
 };
 

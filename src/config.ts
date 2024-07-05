@@ -17,6 +17,10 @@ interface Config {
     SEARXNG: string;
     OLLAMA: string;
   };
+  LANGUAGE: {
+    SEARCH: string;
+    RESPONSE: string;
+  };
 }
 
 type RecursivePartial<T> = {
@@ -40,6 +44,28 @@ export const getGroqApiKey = () => loadConfig().API_KEYS.GROQ;
 export const getSearxngApiEndpoint = () => loadConfig().API_ENDPOINTS.SEARXNG;
 
 export const getOllamaApiEndpoint = () => loadConfig().API_ENDPOINTS.OLLAMA;
+
+export const getSearchLanguage = () => loadConfig().LANGUAGE.SEARCH;
+
+export const getResponseLanguage = () => loadConfig().LANGUAGE.RESPONSE;
+
+export const setSearchLanguage = (language: string) => {
+  const config = loadConfig();
+  config.LANGUAGE.SEARCH = language;
+  fs.writeFileSync(
+    path.join(__dirname, `../${configFileName}`),
+    toml.stringify(config),
+  );
+};
+
+export const setResponseLanguage = (language: string) => {
+  const config = loadConfig();
+  config.LANGUAGE.RESPONSE = language;
+  fs.writeFileSync(
+    path.join(__dirname, `../${configFileName}`),
+    toml.stringify(config),
+  );
+};
 
 export const updateConfig = (config: RecursivePartial<Config>) => {
   const currentConfig = loadConfig();

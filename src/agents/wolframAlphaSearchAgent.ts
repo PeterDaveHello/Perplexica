@@ -60,6 +60,7 @@ const basicWolframAlphaSearchResponsePrompt = `
 
     If you think there's nothing relevant in the search results, you can say that 'Hmm, sorry I could not find any relevant information on this topic. Would you like me to search again or ask something else?'.
     Anything between the \`context\` is retrieved from Wolfram Alpha and is not a part of the conversation with the user. Today's date is ${new Date().toISOString()}
+    Please answer in {responseLanguage}.
 `;
 
 const strParser = new StringOutputParser();
@@ -99,6 +100,8 @@ const handleStream = async (
 type BasicChainInput = {
   chat_history: BaseMessage[];
   query: string;
+  searchLanguage: string;
+  responseLanguage: string;
 };
 
 const createBasicWolframAlphaSearchRetrieverChain = (llm: BaseChatModel) => {
@@ -106,13 +109,13 @@ const createBasicWolframAlphaSearchRetrieverChain = (llm: BaseChatModel) => {
     PromptTemplate.fromTemplate(basicWolframAlphaSearchRetrieverPrompt),
     llm,
     strParser,
-    RunnableLambda.from(async (input: string) => {
+    RunnableLambda.from(async (input: string, { searchLanguage }) => {
       if (input === 'not_needed') {
         return { query: '', docs: [] };
       }
 
       const res = await searchSearxng(input, {
-        language: 'en',
+        language: searchLanguage,
         engines: ['wolframalpha'],
       });
 
@@ -147,10 +150,13 @@ const createBasicWolframAlphaSearchAnsweringChain = (llm: BaseChatModel) => {
     RunnableMap.from({
       query: (input: BasicChainInput) => input.query,
       chat_history: (input: BasicChainInput) => input.chat_history,
+      searchLanguage: (input: BasicChainInput) => input.searchLanguage,
+      responseLanguage: (input: BasicChainInput) => input.responseLanguage,
       context: RunnableSequence.from([
         (input) => ({
           query: input.query,
           chat_history: formatChatHistoryAsString(input.chat_history),
+          searchLanguage: input.searchLanguage,
         }),
         basicWolframAlphaSearchRetrieverChain
           .pipe(({ query, docs }) => {
@@ -178,6 +184,8 @@ const basicWolframAlphaSearch = (
   query: string,
   history: BaseMessage[],
   llm: BaseChatModel,
+  searchLanguage: string,
+  responseLanguage: string,
 ) => {
   const emitter = new eventEmitter();
 
@@ -188,6 +196,8 @@ const basicWolframAlphaSearch = (
       {
         chat_history: history,
         query: query,
+        searchLanguage: searchLanguage,
+        responseLanguage: responseLanguage,
       },
       {
         version: 'v1',
@@ -211,8 +221,16 @@ const handleWolframAlphaSearch = (
   history: BaseMessage[],
   llm: BaseChatModel,
   embeddings: Embeddings,
+  searchLanguage: string,
+  responseLanguage: string,
 ) => {
-  const emitter = basicWolframAlphaSearch(message, history, llm);
+  const emitter = basicWolframAlphaSearch(
+    message,
+    history,
+    llm,
+    searchLanguage,
+    responseLanguage,
+  );
   return emitter;
 };
 

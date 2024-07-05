@@ -6,6 +6,8 @@ interface SearxngSearchOptions {
   engines?: string[];
   language?: string;
   pageno?: number;
+  search_language?: string;
+  response_language?: string;
 }
 
 interface SearxngSearchResult {
